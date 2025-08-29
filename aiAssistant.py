@@ -33,6 +33,7 @@ async def build_app():
         "number": float,
         "integer": int,
         "boolean": bool,
+        "array": list[str],
     }
     for tool in tools_meta:
         name = tool["name"]
@@ -100,7 +101,7 @@ async def main():
     app, client = await build_app()
 
     try:
-        inputs = {"messages": [("user", "bạn có những tools nào?")]}
+        inputs = {"messages": [("user", "bạn có những tool gì")]}
         async for s in app.astream(inputs, stream_mode="values"):
             message = s["messages"][-1]
             if isinstance(message, (AIMessage, HumanMessage)):
