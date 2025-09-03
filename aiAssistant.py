@@ -42,12 +42,15 @@ async def build_app():
         
         def clean_html(raw_html: str) -> str:
             return BeautifulSoup(raw_html, "html.parser").get_text(" ", strip=True)
-        async def _caller(**kwargs):
-            result = await client.call_tool(name, kwargs)
-            if result.content:
-                raw_text = result.content[0].text
-                return clean_html(raw_text) 
-            return "No content"
+        def make_caller(tool_name: str):
+            async def _caller(**kwargs):
+                print(f"Calling tool {tool_name} with args {kwargs}")
+                result = await client.call_tool(tool_name, kwargs)
+                if result.content:
+                    raw_text = result.content[0].text
+                    return clean_html(raw_text)
+                return "No content"
+            return _caller
 
         fields = {
             k: (type_map.get(v.get("type"), str), ...)
@@ -56,7 +59,7 @@ async def build_app():
         ArgsModel = create_model(f"{name}Args", **fields)
 
         wrapped_tool = StructuredTool.from_function(
-            coroutine=_caller,
+            coroutine=make_caller(name), 
             name=name,
             description=description,
             args_schema=ArgsModel,
@@ -101,7 +104,7 @@ async def main():
     app, client = await build_app()
 
     try:
-        inputs = {"messages": [("user", "bạn có những tool gì")]}
+        inputs = {"messages": [("user", "search the latest langchain docs for chroma db")]}
         async for s in app.astream(inputs, stream_mode="values"):
             message = s["messages"][-1]
             if isinstance(message, (AIMessage, HumanMessage)):
