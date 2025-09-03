@@ -9,8 +9,8 @@ import asyncio
 from mcpserver.mcp_client import MCPClient
 from pydantic import create_model
 from langchain_core.tools import StructuredTool
-from bs4 import BeautifulSoup
 import os
+import json
 
 load_dotenv()   
 
@@ -40,16 +40,14 @@ async def build_app():
         description = tool["description"]
         schema = tool["input_schema"]["properties"]
         
-        def clean_html(raw_html: str) -> str:
-            return BeautifulSoup(raw_html, "html.parser").get_text(" ", strip=True)
         def make_caller(tool_name: str):
             async def _caller(**kwargs):
                 print(f"Calling tool {tool_name} with args {kwargs}")
                 result = await client.call_tool(tool_name, kwargs)
                 if result.content:
-                    raw_text = result.content[0].text
-                    return clean_html(raw_text)
-                return "No content"
+                    all_events = [json.loads(item.text) for item in result.content]
+                    return all_events
+                return []
             return _caller
 
         fields = {
@@ -72,7 +70,7 @@ async def build_app():
     ).bind_tools(wrapped_tools)
 
     async def model_call(state: AgentState) -> AgentState:
-        system_prompt = SystemMessage(content="You are my AI assistant.Khi nhận dữ liệu từ tool, hãy hướng dẫn từng bước.")
+        system_prompt = SystemMessage(content="You are my AI assistant.Khi nhận dữ liệu từ tool, hãy hướng dẫn từng bước.Tóm tắt nó lại trong nhiều nhất 10 dòng")
         response = await model.ainvoke([system_prompt] + state["messages"])
         return {"messages": [response]}
 
@@ -104,11 +102,18 @@ async def main():
     app, client = await build_app()
 
     try:
-        inputs = {"messages": [("user", "search the latest langchain docs for chroma db")]}
-        async for s in app.astream(inputs, stream_mode="values"):
-            message = s["messages"][-1]
-            if isinstance(message, (AIMessage, HumanMessage)):
-                message.pretty_print()
+        while True:
+            user_input = input("👤 You: ")
+            if user_input.lower() in ["exit", "quit", "q"]:
+                print("👋 Bye!")
+                break
+
+            inputs = {"messages": [("user", user_input)]}
+
+            async for s in app.astream(inputs, stream_mode="values"):
+                message = s["messages"][-1]
+                if isinstance(message, (AIMessage, HumanMessage)):
+                    message.pretty_print()
     finally:
         await client.cleanup()
 

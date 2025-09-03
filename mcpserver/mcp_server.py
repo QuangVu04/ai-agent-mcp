@@ -5,14 +5,17 @@ import json
 from bs4 import BeautifulSoup
 import os
 import sys
+from typing import Optional
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from tools.send_email_tool import EmailTool
+from tools.google_calendar_tool import GoogleCalendarTool
 
 load_dotenv()
 
 mcp = FastMCP("docs")
 email_tool_instance = EmailTool()
+google_calendar_tool_instance = GoogleCalendarTool()
 
 USER_AGENT = "docs-app/1.0"
 SERPER_URL="https://google.serper.dev/search"
@@ -105,6 +108,53 @@ async def send_email(from_address: str, to_addresses: list, subject: str, body: 
   
   return email_tool_instance.send_text_email(from_address, to_addresses, subject, body)
 
+@mcp.tool(description="Creates a Google Calendar event.")
+async def create_google_calendar_event(summary: str, location: str, description: str, start_datetime: str, end_datetime: str, attendees: list[str] = []):
+    """
+    Creates a Google Calendar event using the provided event details.
+
+    Args:
+        event (dict): A dictionary containing the event details as per Google Calendar API.
+                      Example structure:
+                      {
+                          "summary": "Meeting with Bob",
+                          "location": "123 Main St, Anytown, USA",
+                          "description": "Discuss project updates.",
+                          "start": {
+                              "dateTime": "2023-10-01T10:00:00-07:00",
+                              "timeZone": "America/Los_Angeles"
+                          },
+                          "end": {
+                              "dateTime": "2023-10-01T11:00:00-07:00",
+                              "timeZone": "America/Los_Angeles"
+                          },
+                          "attendees": [
+                              {"email": "R0A5M@example.com"},
+                              {"email": "o7PjI@example.com"}
+                          ]
+                      }
+
+    Returns:
+        str: A message indicating the result of the event creation.
+    """
+
+    return  google_calendar_tool_instance.insert_event(summary, location, description, start_datetime, end_datetime, attendees)
+
+@mcp.tool(description="Lists upcoming Google Calendar events.")
+async def list_upcoming_events(max_results: Optional[int] = 10,time_max: Optional[str] = None, time_min: Optional[str] = None):
+    """
+    Lists upcoming Google Calendar events.
+
+    Args:
+        time_min (Optional[str]): ISO start time. None = no limit.
+        time_max (Optional[str]): ISO end time. None = no limit.
+        max_results (Optional[int]): Maximum events. Default 10.
+
+    Returns:
+        List[dict]: A list of event details as per Google Calendar API.
+    """
+    max_results = int(max_results)
+    return google_calendar_tool_instance.list_upcoming_events(max_results, time_max,time_min)
 
 if __name__ == "__main__":
     mcp.run(transport="stdio")

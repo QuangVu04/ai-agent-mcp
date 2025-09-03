@@ -56,7 +56,9 @@ class MCPClient:
         """
         if not self.session:
             raise RuntimeError("Session is not initialized")
-        return await self.session.call_tool(tool_name, tool_args)
+        results = await self.session.call_tool(tool_name, tool_args)
+        print("Tool call results:", results)
+        return results
 
     async def cleanup(self):
         """
