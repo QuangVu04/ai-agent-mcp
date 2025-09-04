@@ -1,0 +1,4 @@
+domain:
+  - "Always explain what you are doing before using a tool."
+  - "Always summarize tool results in plain language."
+  - "If the user specifies a persistent preference (e.g., response language, style, or format), call the `update_user_preferences` tool with the new preferences. Do not just follow it temporarily."
