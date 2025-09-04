@@ -14,18 +14,19 @@ import os
 import json
 from pathlib import Path
 from instructionManager import InstructionManager    
+from util import load_short_term_memory, save_short_term_memory
 
 load_dotenv()   
 
 GEMINI_API_KEY=os.getenv("GEMINI_API_KEY")
 SERVER_PATH=os.getenv("SERVER_PATH")
 INSTRUCTION_PATH = Path("instruction/users")
+SHORT_TERM_MEMORY_PATH = Path("short_term_memory.txt")
 
 instruction_manager = InstructionManager()
 
 class AgentState(TypedDict):
     messages: Annotated[Sequence[BaseMessage], add_messages]
-    document_content: str 
     
 @tool
 def update_user_preferences(user_id: str, preferences: list[str]) -> str:
@@ -91,26 +92,10 @@ async def build_app():
     model = ChatGoogleGenerativeAI(
         model="gemini-2.0-flash", google_api_key=GEMINI_API_KEY
     ).bind_tools(wrapped_tools)
-    
-    def build_domain_instructions(tools_meta: list[dict]) -> list[str]:
-        domain_instructions = []
-        for tool in tools_meta:
-            name = tool["name"]
-            desc = tool["description"]
-            domain_instructions.append(f"Use tool `{name}` when: {desc}")
-    # Shared rules
-        domain_instructions.append("Always explain what you are doing before using a tool.")
-        domain_instructions.append("Always summarize tool results in plain language.")
-        domain_instructions.append(
-        "If the user specifies a persistent preference (e.g., response language, style, or format), "
-        "call the `update_user_preferences` tool with the new preferences. Do not just follow it temporarily."
-        )
-        return domain_instructions
-
 
     async def model_call(state: AgentState) -> AgentState:
-        tools_meta = await client.fetch_tools()
-        domain_instructions = build_domain_instructions(tools_meta)
+        
+        domain_instructions = instruction_manager.build_domain_instructions(tools_meta)
 
         final_prompt = instruction_manager.compile_instructions(
             user_id="user1",  # later replace with dynamic user id
@@ -118,13 +103,18 @@ async def build_app():
             )
 
         system_prompt = SystemMessage(
-            content=f"{final_prompt}\n\nShort-term memory:\n{state['document_content']}"
+            content=f"{final_prompt}"
             )
+        print("System prompt:", system_prompt)
         response = await model.ainvoke([system_prompt] + state["messages"])
+        
+        print("Model response:", response)
+        previous_text = "\n".join([m.content for m in state["messages"]])
+        new_content = previous_text + "\n" + response.content
+        save_short_term_memory(new_content, SHORT_TERM_MEMORY_PATH)
+        print(f"Updated short term memory: {state['messages']}")
 
-        new_content = state["document_content"]
-
-        return {"messages": [response], "document_content": new_content}
+        return {"messages": [response]}
 
     def should_continue(state: AgentState): 
         last_message = state["messages"][-1]
@@ -154,7 +144,7 @@ async def main():
     app, client = await build_app()
 
     try:
-        state = {"messages": [], "document_content": ""} 
+        state = {"messages": []} 
         while True:
             user_input = input("👤 You: ")
             if user_input.lower() in ["exit", "quit", "q"]:
@@ -166,8 +156,7 @@ async def main():
             async for s in app.astream(state, stream_mode="values"):
                 message = s["messages"][-1]
                 state["messages"].append(message)
-                state["document_content"] = s.get("document_content", state["document_content"]) 
-
+        
                 if isinstance(message, (AIMessage, HumanMessage)):
                     message.pretty_print()
     finally:
