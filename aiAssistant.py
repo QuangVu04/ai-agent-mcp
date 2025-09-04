@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 from langchain_core.messages import BaseMessage, SystemMessage, AIMessage, HumanMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.graph.message import add_messages
+from langchain_core.tools import tool
 from langgraph.graph import StateGraph, END
 from langgraph.prebuilt import ToolNode
 import asyncio
@@ -19,6 +20,7 @@ SERVER_PATH=os.getenv("SERVER_PATH")
 
 class AgentState(TypedDict):
     messages: Annotated[Sequence[BaseMessage], add_messages]
+    document_content: str 
 
 
 async def build_app():
@@ -70,9 +72,15 @@ async def build_app():
     ).bind_tools(wrapped_tools)
 
     async def model_call(state: AgentState) -> AgentState:
-        system_prompt = SystemMessage(content="You are my AI assistant.Khi nhận dữ liệu từ tool, hãy hướng dẫn từng bước.Tóm tắt nó lại trong nhiều nhất 10 dòng")
+        system_prompt = SystemMessage(
+            content=f"You are my AI assistant. Current short-term memory:\n{state['document_content']}\n"
+                    "When receiving tool output, guide step by step. Summarize within 10 lines."
+        )
         response = await model.ainvoke([system_prompt] + state["messages"])
-        return {"messages": [response]}
+
+        new_content = state["document_content"]
+
+        return {"messages": [response], "document_content": new_content}
 
     def should_continue(state: AgentState): 
         last_message = state["messages"][-1]
@@ -102,16 +110,20 @@ async def main():
     app, client = await build_app()
 
     try:
+        state = {"messages": [], "document_content": ""} 
         while True:
             user_input = input("👤 You: ")
             if user_input.lower() in ["exit", "quit", "q"]:
                 print("👋 Bye!")
                 break
 
-            inputs = {"messages": [("user", user_input)]}
+            state["messages"].append(HumanMessage(content=user_input))
 
-            async for s in app.astream(inputs, stream_mode="values"):
+            async for s in app.astream(state, stream_mode="values"):
                 message = s["messages"][-1]
+                state["messages"].append(message)
+                state["document_content"] = s.get("document_content", state["document_content"]) 
+
                 if isinstance(message, (AIMessage, HumanMessage)):
                     message.pretty_print()
     finally:
