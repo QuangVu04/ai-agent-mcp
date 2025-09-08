@@ -17,10 +17,10 @@ class InstructionManager:
         for instr in system_level:
             final_prompt += f"- {instr}\n"
 
-        # final_prompt += "\n### Domain Instructions:\n"
-        # all_domain_instr = domain_level + domain_instructions
-        # for instr in all_domain_instr:
-        #     final_prompt += f"- {instr}\n"
+        final_prompt += "\n### Domain Instructions:\n"
+        all_domain_instr = domain_level + domain_instructions
+        for instr in all_domain_instr:
+            final_prompt += f"- {instr}\n"
 
         final_prompt += "\n### User Instructions:\n"
         for instr in user_level:

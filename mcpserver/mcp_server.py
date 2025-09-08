@@ -8,8 +8,8 @@ import sys
 from typing import Optional
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-from tools.send_email_tool import EmailTool
-from tools.google_calendar_tool import GoogleCalendarTool
+from mcptools.send_email_tool import EmailTool
+from mcptools.google_calendar_tool import GoogleCalendarTool
 
 load_dotenv()
 

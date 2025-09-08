@@ -3,91 +3,39 @@ from dotenv import load_dotenv
 from langchain_core.messages import BaseMessage, SystemMessage, AIMessage, HumanMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.graph.message import add_messages
-from langchain_core.tools import tool
 from langgraph.graph import StateGraph, END
 from langgraph.prebuilt import ToolNode
 import asyncio
 from mcpserver.mcp_client import MCPClient
-from pydantic import create_model
-from langchain_core.tools import StructuredTool
 import os
-import json
 from pathlib import Path
-from instructionManager import InstructionManager    
-from util import load_short_term_memory, save_short_term_memory
+from tools.toolsManager import ToolManager
+from tools.updateUserPreferences import update_user_preferences
+from instruction.instructionManager import InstructionManager    
 
 load_dotenv()   
 
 GEMINI_API_KEY=os.getenv("GEMINI_API_KEY")
 SERVER_PATH=os.getenv("SERVER_PATH")
 INSTRUCTION_PATH = Path("instruction/users")
-SHORT_TERM_MEMORY_PATH = Path("short_term_memory.txt")
 
 instruction_manager = InstructionManager()
 
 class AgentState(TypedDict):
     messages: Annotated[Sequence[BaseMessage], add_messages]
     
-@tool
-def update_user_preferences(user_id: str, preferences: list[str]) -> str:
-    """Cập nhật hoặc ghi đè các tùy chọn cá nhân của một user.
-
-    Args:
-        user_id: ID của người dùng (vd: 'user1', hiện tại mặc định đều là user1 )
-        preferences: Danh sách sở thích mới (mỗi item là 1 rule hoặc preference)
-    """
-    user_file = INSTRUCTION_PATH / f"{user_id}.json"
-    data = {"user": preferences}
-
-    with open(user_file, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-
-    return f"User {user_id} preferences updated successfully: {preferences}"
-
-
 async def build_app():
     client = MCPClient()
     await client.connect_to_server(SERVER_PATH)
-    
+
     tools_meta = await client.fetch_tools()
-    
-    wrapped_tools = [update_user_preferences]
-    type_map = {
-        "string": str,
-        "number": float,
-        "integer": int,
-        "boolean": bool,
-        "array": list[str],
-    }
-    for tool in tools_meta:
-        name = tool["name"]
-        description = tool["description"]
-        schema = tool["input_schema"]["properties"]
-        
-        def make_caller(tool_name: str):
-            async def _caller(**kwargs):
-                print(f"Calling tool {tool_name} with args {kwargs}")
-                result = await client.call_tool(tool_name, kwargs)
-                if result.content:
-                    all_events = [json.loads(item.text) for item in result.content]
-                    return all_events
-                return []
-            return _caller
+    tool_manager = ToolManager(client)
 
-        fields = {
-            k: (type_map.get(v.get("type"), str), ...)
-            for k, v in schema.items()
-        }
-        ArgsModel = create_model(f"{name}Args", **fields)
+    tool_manager.register(update_user_preferences)
 
-        wrapped_tool = StructuredTool.from_function(
-            coroutine=make_caller(name), 
-            name=name,
-            description=description,
-            args_schema=ArgsModel,
-        )
-        wrapped_tools.append(wrapped_tool)
+    await tool_manager.load_from_mcp(tools_meta)
 
+    wrapped_tools = tool_manager.list_tools()
 
     model = ChatGoogleGenerativeAI(
         model="gemini-2.0-flash", google_api_key=GEMINI_API_KEY
@@ -105,15 +53,7 @@ async def build_app():
         system_prompt = SystemMessage(
             content=f"{final_prompt}"
             )
-        print("System prompt:", system_prompt)
         response = await model.ainvoke([system_prompt] + state["messages"])
-        
-        print("Model response:", response)
-        previous_text = "\n".join([m.content for m in state["messages"]])
-        new_content = previous_text + "\n" + response.content
-        save_short_term_memory(new_content, SHORT_TERM_MEMORY_PATH)
-        print(f"Updated short term memory: {state['messages']}")
-
         return {"messages": [response]}
 
     def should_continue(state: AgentState): 
