@@ -1,6 +1,7 @@
 from pathlib import Path
 from util import load_yaml
 from util import load_json
+from langchain_core.messages import SystemMessage
 
 INSTRUCTION_PATH = Path("instruction")
 
@@ -35,3 +36,12 @@ class InstructionManager:
             desc = tool["description"]
             domain_instructions.append(f"Use tool `{name}` when: {desc}")
         return domain_instructions
+    
+    async def load_system_instructions(self,tools_meta : list[dict]):
+        domain_instructions = self.build_domain_instructions(tools_meta)
+
+        final_prompt = self.compile_instructions(
+            user_id="user1",  # later replace with dynamic user id
+            domain_instructions=domain_instructions
+        )
+        return SystemMessage(content=final_prompt)

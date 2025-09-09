@@ -56,6 +56,7 @@ async def get_alerts(state: str) -> str:
 @mcp.tool()
 async def get_forecast(latitude: float, longitude: float) -> str:
     """Get weather forecast for a location.
+    Try to find latitude and longitude from the user's location.
 
     Args:
         latitude: Latitude of the location

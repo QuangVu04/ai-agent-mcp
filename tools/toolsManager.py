@@ -1,6 +1,7 @@
 import json
 from pydantic import create_model
 from langchain_core.tools import StructuredTool
+from functools import partial
 
 class ToolManager:
     def __init__(self, client):
@@ -28,10 +29,21 @@ class ToolManager:
             def make_caller(tool_name: str):
                 async def _caller(**kwargs):
                     result = await self.client.call_tool(tool_name, kwargs)
-                    if result.content:
-                        all_events = [json.loads(item.text) for item in result.content]
-                        return all_events
-                    return []
+                    if not result.content:
+                        return None
+
+                    normalized = []
+                    for item in result.content:
+                        text = getattr(item, "text", None)
+                        if not text:
+                            continue
+                        try:
+                            normalized.append(json.loads(text))
+                        except json.JSONDecodeError:
+                            normalized.append(text)
+
+                    # Nếu chỉ có một phần tử thì trả trực tiếp
+                    return normalized[0] if len(normalized) == 1 else normalized
                 return _caller
 
             fields = {
