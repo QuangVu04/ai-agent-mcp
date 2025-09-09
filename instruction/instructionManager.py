@@ -1,7 +1,8 @@
 from pathlib import Path
 from util import load_yaml
-from util import load_json
 from langchain_core.messages import SystemMessage
+from tools.updateUserFact import query_user_facts
+
 
 INSTRUCTION_PATH = Path("instruction")
 
@@ -9,10 +10,9 @@ class InstructionManager:
     def __init__(self):
         self.instruction_path = INSTRUCTION_PATH
         
-    def compile_instructions(self, user_id: str, domain_instructions: list[str]):
+    def compile_instructions(self, domain_instructions: list[str]):
         system_level = load_yaml(self.instruction_path / "system.yaml").get("system", [])
         domain_level = load_yaml(self.instruction_path / "domain"/"domain.yaml").get("domain", [])
-        user_level = load_json(self.instruction_path / "users" / f"{user_id}.json").get("user", [])
 
         final_prompt = "### System Instructions:\n"
         for instr in system_level:
@@ -22,9 +22,10 @@ class InstructionManager:
         all_domain_instr = domain_level + domain_instructions
         for instr in all_domain_instr:
             final_prompt += f"- {instr}\n"
-
+        
         final_prompt += "\n### User Instructions:\n"
-        for instr in user_level:
+        preference = query_user_facts (query="sở thích", category="preference")
+        for instr in preference:
             final_prompt += f"- {instr}\n"
             
         return final_prompt
@@ -41,7 +42,6 @@ class InstructionManager:
         domain_instructions = self.build_domain_instructions(tools_meta)
 
         final_prompt = self.compile_instructions(
-            user_id="user1",  # later replace with dynamic user id
             domain_instructions=domain_instructions
         )
         return SystemMessage(content=final_prompt)

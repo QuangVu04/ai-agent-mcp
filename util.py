@@ -21,3 +21,4 @@ def load_short_term_memory(SHORT_TERM_MEMORY_PATH) -> str:
 
 def save_short_term_memory(content: str, SHORT_TERM_MEMORY_PATH):
     SHORT_TERM_MEMORY_PATH.write_text(content, encoding="utf-8")
+    

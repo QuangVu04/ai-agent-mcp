@@ -9,8 +9,8 @@ from mcpserver.mcp_client import MCPClient
 import os
 from pathlib import Path
 from tools.toolsManager import ToolManager
-from tools.updateUserPreferences import update_user_preferences
 from instruction.instructionManager import InstructionManager
+from tools.updateUserFact import update_user_fact, query_user_fact, query_user_facts
    
 
 load_dotenv()   
@@ -31,7 +31,8 @@ async def build_ai_agent():
     tools_meta = await client.fetch_tools()
     tool_manager = ToolManager(client)
     
-    tool_manager.register(update_user_preferences)
+    tool_manager.register(update_user_fact)
+    tool_manager.register(query_user_fact)
 
     await tool_manager.load_from_mcp(tools_meta)
 
@@ -43,14 +44,15 @@ async def build_ai_agent():
 
     initial_state = {
         "messages": [], 
-        "system_prompt": await instruction_manager.load_system_instructions(tools_meta)
+        "system_prompt": await instruction_manager.load_system_instructions(tools_meta) 
     }
+    print(initial_state)
 
     async def model_call(state: AgentState) -> AgentState:
-        state["system_prompt"] = await instruction_manager.load_system_instructions(tools_meta)
-        print(state["system_prompt"])
-        response = await model.ainvoke([state["system_prompt"]] + state["messages"])
-        state["messages"].append(response) 
+
+        response = await model.ainvoke([state["system_prompt"]] + state["messages"] )
+        state["messages"].append(response)
+
         return state
 
     def should_continue(state: AgentState): 
