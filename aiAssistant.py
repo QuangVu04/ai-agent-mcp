@@ -10,7 +10,7 @@ import os
 from pathlib import Path
 from tools.toolsManager import ToolManager
 from instruction.instructionManager import InstructionManager
-from tools.updateUserFact import update_user_fact, query_user_fact, query_user_facts
+from tools.updateUserFact import update_user_fact, query_user_fact
    
 
 load_dotenv()   
@@ -46,7 +46,6 @@ async def build_ai_agent():
         "messages": [], 
         "system_prompt": await instruction_manager.load_system_instructions(tools_meta) 
     }
-    print(initial_state)
 
     async def model_call(state: AgentState) -> AgentState:
 
