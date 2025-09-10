@@ -11,6 +11,7 @@ from pathlib import Path
 from tools.toolsManager import ToolManager
 from instruction.instructionManager import InstructionManager
 from tools.updateUserFact import update_user_fact, query_user_fact
+from util import load_state, save_state
    
 
 load_dotenv()   
@@ -22,6 +23,8 @@ INSTRUCTION_PATH = Path("instruction/users")
 class AgentState(TypedDict):
     messages: Annotated[Sequence[BaseMessage], add_messages]
     system_prompt: SystemMessage
+    summary: str
+    recent_window: int 
     
 async def build_ai_agent():
     client = MCPClient()
@@ -44,13 +47,32 @@ async def build_ai_agent():
 
     initial_state = {
         "messages": [], 
-        "system_prompt": await instruction_manager.load_system_instructions(tools_meta) 
+        "system_prompt": await instruction_manager.load_system_instructions(tools_meta) ,
+        "summary":"",
+        "recent_window": 20
     }
+    
+    initial_state = load_state(initial_state)
 
     async def model_call(state: AgentState) -> AgentState:
+        recent = state["messages"][-state.get("recent_window", 20):] 
+        
+        prompt_messages = [state["system_prompt"]]
+        if state.get("summary"):
+            prompt_messages.append(SystemMessage(content=f"Summary so far: {state['summary']}"))
+            
+        prompt_messages.extend(recent)
 
-        response = await model.ainvoke([state["system_prompt"]] + state["messages"] )
+        response = await model.ainvoke(prompt_messages)
         state["messages"].append(response)
+
+        if len(state["messages"]) > state.get("recent_window", 20):
+            old = state["messages"][:-state["recent_window"]]
+            summary_text = "\n".join([m.content for m in old])
+            state["summary"] = (state.get("summary", "") + "\n" + summary_text).strip()
+            state["messages"] = state["messages"][-state["recent_window"]:]
+
+        save_state(state)
 
         return state
 

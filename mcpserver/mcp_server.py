@@ -32,7 +32,7 @@ async def search(query: str) -> str:
     return await search_web(query)
 
 @mcp.tool()
-async def send_email(from_address: str, to_addresses: list, subject: str, body: str):
+async def send_email( to_addresses: list, subject: str, body: str):
   """
     Sends a plain text email.
 
@@ -40,8 +40,6 @@ async def send_email(from_address: str, to_addresses: list, subject: str, body: 
     details. The email is sent as 'text/plain'.
 
     Args:
-        fromAddress (str): The email address of the sender.
-                           Note: Some SMTP servers may require this to match the authenticated user.
         toAddresses (List[str]): A list of recipient email addresses.
         subject (str): The subject line of the email.
         body (str): The plain text content of the email body.
@@ -56,7 +54,7 @@ async def send_email(from_address: str, to_addresses: list, subject: str, body: 
         Exception: For other errors during the email sending process (e.g., SMTP errors).
   """
   
-  return email_tool_instance.send_text_email(from_address, to_addresses, subject, body)
+  return email_tool_instance.send_text_email( to_addresses, subject, body)
 
 @mcp.tool()
 async def create_google_calendar_event(summary: str, location: str, description: str, start_datetime: str, end_datetime: str, attendees: list[str] = []):

@@ -38,22 +38,21 @@ class EmailTool:
         server.login(self.user, self.password)
         return server
 
-    def send_text_email(self, from_address: str, to_addresses: List[str], subject: str, body: str) -> Dict[str, str]:
+    def send_text_email(self, to_addresses: List[str], subject: str, body: str) -> Dict[str, str]:
         if not isinstance(to_addresses, list) or not to_addresses:
             raise ValueError("Input 'to_addresses' must be a non-empty list.")
 
-        if from_address != self.user:
-            logging.warning(f"from_address '{from_address}' differs from authenticated user '{self.user}'. Sending may fail.")
+      
 
         server = None
         try:
             msg = MIMEText(body, 'plain', 'utf-8')
             msg['Subject'] = make_header(decode_header(subject))
-            msg['From'] = from_address
+            msg['From'] = self.user
             msg['To'] = ', '.join(to_addresses)
 
             server = self.connect_smtp()
-            server.sendmail(from_address, to_addresses, msg.as_string())
+            server.sendmail(self.user, to_addresses, msg.as_string())
             logging.info(f"Text email sent successfully to {', '.join(to_addresses)}")
             return {"status": "success"}
         except Exception as e:
